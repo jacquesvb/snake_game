@@ -1,4 +1,4 @@
-import init, { World, Direction } from "../pkg/snake_game";
+import init, { World, Direction, GameStatus } from "../pkg/snake_game";
 import { rnd } from "./utils/rnd";
 
 init().then((wasm : any) => {
@@ -9,11 +9,26 @@ init().then((wasm : any) => {
   const world = World.new(WORLD_WIDTH, snakeSpawnIdx);
   const worldWidth = world.width();
 
+  const points = document.getElementById("points");
+  const gameStatus = document.getElementById("game-status");
+  const gameControlBtn = document.getElementById("game-control-btn");
   const canvas = <HTMLCanvasElement> document.getElementById("snake-canvas");
   const ctx = canvas.getContext("2d");
 
   canvas.height = worldWidth * CELL_SIZE;
   canvas.width = worldWidth * CELL_SIZE;
+
+  gameControlBtn.addEventListener("click", _ => {
+    const status = world.game_status();
+
+    if (status === undefined) {
+      gameControlBtn.textContent = "Playing..";
+      world.start_game();
+      play();
+    } else {
+      location.reload();
+    }
+  })
 
   const snakeCellPtr = world.snake_cells();
   const snakeLen = world.snake_length();
@@ -87,11 +102,18 @@ init().then((wasm : any) => {
       world.snake_length()
     )
 
-    snakeCells.forEach((cellIdx, i) => {
+    // filter out duplicates
+    // reverse array
+
+    snakeCells
+      // .filter((cellIdx, i) => !(i > 0 && cellIdx === snakeCells[0]))
+      .slice().reverse()
+      .forEach((cellIdx, i) => {
       const col = cellIdx % worldWidth;
       const row = Math.floor(cellIdx / worldWidth);
 
-      ctx.fillStyle = i === 0 ? "#7878db" : "#000000";
+      // we are overriding snake head color by body when we crash
+      ctx.fillStyle = i === snakeCells.length - 1 ? "#7878db" : "#000000";
 
       ctx.beginPath();
       ctx.fillRect(
@@ -104,23 +126,34 @@ init().then((wasm : any) => {
     ctx.stroke();
   }
 
+  function drawGameStatus() { 
+    gameStatus.textContent = world.game_status_text();
+    points.textContent = world.points().toString(); 
+  }
+
   function paint() {
     drawWorld();
     drawSnake();
     drawReward();
+    drawGameStatus();
   }
 
-  function update() {
+  function play() {
+    const status = world.game_status();
+
+    if (status == GameStatus.Won || status == GameStatus.Lost) {
+      gameControlBtn.textContent = "Replay"
+    }
+
     const fps = 10;
     setTimeout(() => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       world.step();
       paint();
       // the method takes a callback to invoked before the next repaint
-      requestAnimationFrame(update)
+      requestAnimationFrame(play)
     }, 1000 / fps)
   }
 
   paint();
-  update();
 })
